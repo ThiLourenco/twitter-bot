@@ -1,4 +1,6 @@
 const Twit = require('twit');
+const Cron = require('node-cron');
+const puppeteer = require('puppeteer');
 require('dotenv').config();
 
 function tweet(msg) {
@@ -19,8 +21,38 @@ function tweet(msg) {
   });
 }
 
-async function main() {
-  tweet('Hello World!');
+async function getRecoveredNumber() {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+  await page.setViewport({
+    width: 1024,
+    height: 768
+  });
+
+  await page.goto('https://covid.saude.gov.br/', {
+    timeout: 60*1000,
+    waitUntil: 'networkidle2'
+  });
+
+  let recovered = await page.evaluate(() => {
+    let numberPage = document.getElementsByClassName('lb-total')[0].lastChild.data.trim();
+    return numberPage
+  });
+
+  await browser.close();
+  return recovered;
 }
 
-main();
+async function main() {
+  let recovered = await getRecoveredNumber();
+  let doTweet = 'Bom dia!\n';
+  doTweet += '\n';
+  doTweet += recovered + 'brasileiros se recuperaram da covid #Covid19 até o momento \n '
+  doTweet += '\n';
+  doTweet += 'Fonte: https://covid.saude.gov.br';
+  tweet(doTweet);
+}
+
+Cron.schedule('30 6 * * *', () => {
+  main();
+});
